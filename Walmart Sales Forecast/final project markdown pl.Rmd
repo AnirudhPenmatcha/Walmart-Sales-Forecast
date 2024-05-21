@@ -1,0 +1,283 @@
+---
+title: "FInal project eda"
+output: html_document
+date: "2023-12-12"
+---
+
+Importing all the necessary libraries
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(lubridate)
+
+```
+
+Importing the dataset
+```{r}
+df_store <- read_csv("C:/Users/aathi/Downloads/dataset/features/stores.csv")
+df_features = read_csv("C:/Users/aathi/Downloads/dataset/features/features.csv") 
+df_train = read_csv("C:/Users/aathi/Downloads/dataset/features/train.csv")
+
+```
+
+Preprocessing of the dataset
+```{r}
+# Display the first three rows of the data frame 
+head(df_store, 3)
+head(df_features, 3)
+
+#merging df_train and df_features dataset and df_store
+df <- inner_join(inner_join(df_train, df_features, by = c("Store", "Date")), df_store, by = "Store")
+
+# Print the first 5 rows of the resulting data frame
+head(df, 5)
+# removing duplicate column since IsHoliday_y and IsHoliday_x are the same
+df$IsHoliday.y <- NULL
+#renaming Isholiday.x as isHoliday
+names(df)[names(df) == "IsHoliday.x"] <- "IsHoliday"
+# Print the first 5 rows of the resulting data frame
+head(df, 5)
+
+# check for non-zero and zero values for weekly sales
+filtered_df <- subset(df, Weekly_Sales <= 0)
+filtered_df
+
+# total rows in dataframe = 421570
+# total rows with missing or zero or negative values = 1348
+# perventage of rows with missing values= 1348/ 421570= 0.31%
+
+# therefore, removing them 
+df <- subset(df, Weekly_Sales > 0)
+df
+
+colnames(df)[colnames(df) == "IsHoliday_x"] <- "IsHoliday"
+df
+```
+
+
+#EXPLORATORY DATA ANALYSIS
+
+Holiday vs. Weekly Sales
+```{r}
+
+# Create a bar plot
+ggplot(df, aes(x = IsHoliday, y = Weekly_Sales, fill = IsHoliday)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Holiday", y = "Weekly Sales") +
+  ggtitle("Holiday vs. Weekly Sales")
+```
+
+Print the dates of holidays
+```{r}
+
+# Create a subset for rows where 'IsHoliday' is true
+df_holiday <- subset(df, IsHoliday == TRUE)
+
+# Get unique dates from the subset
+unique_dates <- unique(df_holiday$Date)
+
+# Print unique dates
+print(unique_dates)
+```
+Super Bowl, Labor Day, Thanksgiving, Christmas are the holidays tht are 
+present in the dataset.
+
+Create different rows in the dataset for the unique holidays
+```{r}
+
+#create different rows in the dataset for the unique holidays
+df$Super_Bowl <- ifelse(df$Date %in% as.Date(c('2010-02-12', '2011-02-11', '2012-02-10')), TRUE, FALSE)
+df$Thanksgiving <- ifelse(df$Date %in% as.Date(c('2010-11-26', '2011-11-25')), TRUE, FALSE)
+df$Labor_Day <- ifelse(df$Date %in% as.Date(c('2010-09-10', '2011-09-09', '2012-09-07')), TRUE, FALSE)
+df$Christmas <- ifelse(df$Date %in% as.Date(c('2010-12-31', '2011-12-30')), TRUE, FALSE)
+
+```
+
+THANKSGIVING AVERAGE SALES VS AVERAGE WEEKLY SALES
+```{r}
+
+# Calculate the average weekly sales for both TRUE and FALSE values
+average_sales <- tapply(df$Weekly_Sales, df$Thanksgiving, mean)
+
+# Create a data frame for plotting
+plot_data <- data.frame(
+  Thanksgiving = factor(names(average_sales)),
+  Average_Weekly_Sales = average_sales
+)
+
+# Create a bar plot
+ggplot(plot_data, aes(x = Thanksgiving, y = Average_Weekly_Sales, fill = Thanksgiving)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Thanksgiving", y = "Average Weekly Sales") +
+  scale_fill_manual(values = c("FALSE" = "blue", "TRUE" = "red"), name = "Thanksgiving") +
+  ggtitle("Thanksgiving vs. Average Weekly Sales")
+```
+
+
+LABOUR DAY AVERAGE SALES VS AVERAGE WEEKLY SALES
+```{r}
+
+# Calculate the average weekly sales for both TRUE and FALSE values for Labor Day
+average_sales_labor_day <- tapply(df$Weekly_Sales, df$Labor_Day, mean)
+
+# Create a data frame for plotting for Labor Day
+plot_data_labor_day <- data.frame(
+  Holiday = factor(names(average_sales_labor_day)),
+  Average_Weekly_Sales = average_sales_labor_day
+)
+
+# Create a bar plot for Labor Day
+ggplot(plot_data_labor_day, aes(x = Holiday, y = Average_Weekly_Sales, fill = Holiday)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Labor Day", y = "Average Weekly Sales") +
+  scale_fill_manual(values = c("FALSE" = "blue", "TRUE" = "red"), name = "Labor Day") +
+  ggtitle("Labor Day vs. Average Weekly Sales")
+
+```
+
+Christmas vs. Average Weekly Sales
+```{r}
+
+# Calculate the average weekly sales for both TRUE and FALSE values for Christmas
+average_sales_christmas <- tapply(df$Weekly_Sales, df$Christmas, mean)
+
+# Create a data frame for plotting for Christmas
+plot_data_christmas <- data.frame(
+  Holiday = factor(names(average_sales_christmas)),
+  Average_Weekly_Sales = average_sales_christmas
+)
+
+# Create a bar plot for Christmas
+ggplot(plot_data_christmas, aes(x = Holiday, y = Average_Weekly_Sales, fill = Holiday)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Christmas", y = "Average Weekly Sales") +
+  scale_fill_manual(values = c("FALSE" = "blue", "TRUE" = "red"), name = "Christmas") +
+  ggtitle("Christmas vs. Average Weekly Sales")
+
+
+```
+
+
+Pie chart withthe average weekly sales by store type
+```{r}
+
+# Calculate the average weekly sales by store type
+average_sales_by_store <- aggregate(Weekly_Sales ~ Type, data = df, FUN = mean)
+
+# Store types
+store_types <- average_sales_by_store$Type
+
+# Average weekly sales data
+average_sales_data <- average_sales_by_store$Weekly_Sales
+
+# Plotting a pie chart with percentage labels
+pie(average_sales_data, labels = paste0(store_types, "\n", percent(average_sales_data / sum(average_sales_data))),
+    col = c("blue", "orange", "green"), cex = 1.2, border = "white",
+    main = "Average Weekly Sales by Store Type", cex.lab = 1.5)
+
+```
+
+Boxplot of Size of Store by Type of Store
+```{r}
+
+# Create a boxplot
+ggplot(df_store, aes(x = Type, y = Size)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Size by Type", x = "Type", y = "Size")
+```
+
+Scatter plot for 'month' and 'year' against average weekly sales
+```{r}
+
+df$Date <- as.Date(df$Date)
+
+# Create 'week', 'month', and 'year' columns
+df$week <- week(df$Date)
+df$month <- month(df$Date)
+df$year <- year(df$Date)
+
+
+# Calculate average weekly sales for each combination of 'month' and 'year'
+df_avg <- df %>%
+  group_by(month, year) %>%
+  summarise(Avg_Weekly_Sales = mean(Weekly_Sales, na.rm = TRUE))
+
+# Create a scatter plot for 'month' and 'year' against average weekly sales
+ggplot(df_avg, aes(x = month, y = Avg_Weekly_Sales, color = factor(year))) +
+  geom_line() +
+  labs(title = "Average Weekly Sales by Month and Year", x = "Month", y = "Average Weekly Sales") +
+  scale_color_manual(values = c("blue", "red", "green")) +  # Set your desired color for each year
+  theme_minimal()
+```
+
+Average Weekly Sales Against Unemployment
+```{r}
+
+average_sales <- df %>%
+  group_by(Unemployment) %>%
+  summarise(Avg_Weekly_Sales = mean(Weekly_Sales, na.rm = TRUE))
+
+# Create a line plot with 'Unemployment' on the x-axis and average 'Weekly_Sales' on the y-axis
+ggplot(average_sales, aes(x = Unemployment, y = Avg_Weekly_Sales)) +
+  geom_line(color = "blue") +
+  labs(title = "Average Weekly Sales Against Unemployment", x = "Unemployment", y = "Average Weekly Sales") +
+  theme_minimal()
+
+```
+
+
+Average Weekly Sales Against Unemployment
+```{r}
+
+average_sales <- df %>%
+  group_by(CPI) %>%
+  summarise(Avg_Weekly_Sales = mean(Weekly_Sales, na.rm = TRUE))
+
+ggplot(average_sales, aes(x = CPI, y = Avg_Weekly_Sales)) +
+  geom_line(color = "blue") +
+  labs(title = "Average Weekly Sales Against CPI", x = "CPI", y = "Average Weekly Sales") +
+  theme_minimal()
+```
+
+
+Average Weekly Sales Against Temperature
+```{r}
+
+average_sales <- df %>%
+  group_by(Temperature) %>%
+  summarise(Avg_Weekly_Sales = mean(Weekly_Sales, na.rm = TRUE))
+
+ggplot(average_sales, aes(x = Temperature, y = Avg_Weekly_Sales)) +
+  geom_line(color = "blue") +
+  labs(title = "Average Weekly Sales Against Temperature", x = "Temperature", y = "Average Weekly Sales") +
+  theme_minimal()
+
+```
+
+```{r}
+average_sales <- df %>%
+  group_by(Fuel_Price) %>%
+  summarise(Avg_Weekly_Sales = mean(Weekly_Sales, na.rm = TRUE))
+
+ggplot(average_sales, aes(x = Fuel_Price, y = Avg_Weekly_Sales)) +
+  geom_line(color = "blue") +
+  labs(title = "Average Weekly Sales Against Unemployment", x = "Unemployment", y = "Average Weekly Sales") +
+  theme_minimal()
+
+```
+
+```{r}
+average_sales <- df %>%
+  group_by(month) %>%
+  summarise(Avg_Weekly_Sales = mean(Weekly_Sales, na.rm = TRUE))
+# Create a bar plot with 'month' on the x-axis and 'Weekly_Sales' on the y-axis
+ggplot(average_sales, aes(x = month, y = Avg_Weekly_Sales)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  labs(title = "Monthly Sales", x = "Month", y = "Weekly Sales") +
+  theme_minimal()
+
+
+```
+
